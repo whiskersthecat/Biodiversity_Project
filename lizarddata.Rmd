@@ -1,0 +1,439 @@
+
+---
+  title: "animal_distribution_data"
+author: "Peter Reifenstein"
+date: "9/12/2020"
+output:
+  html_document:
+  df_print: paged
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T,error = TRUE)
+
+library(raster)
+library(rgdal)  # Reads shapefiles
+library(sp)     # Manipulates shapefiles
+library(maptools)
+
+library(tmaptools)
+
+library(tmap)
+library(gdalUtils)
+library(rgeos)
+
+library(ggplot2)
+
+data_files = file.path(here::here(), 
+                          "project_data")
+```
+
+```{r}
+?getData 
+
+View( getData("ISO3") )
+
+altitude = getData(name = "alt", # Altitude (land surface elevation) dataset
+        country = "BRA")        
+ altitude_piece1 = altitude[[1]]  # Items in a list are accessed with [[]] double brackets
+ altitude = altitude_piece1   
+ 
+plot(altitude)  #View your altitude data on a map
+
+altitude
+```
+
+
+```{r}
+
+
+south_america_altitude = readOGR(dsn = data_files, layer = "geo6ag")
+
+rivers = readOGR(dsn=data_files,layer="rivers_samerica_37330")
+
+plot(rivers)
+#tm_shape(south_america_altitude)
+
+lizard_sites<-read.csv(file.path(here::here(),"project_data","ATLANTIC_AMPHIBIANS_sites.csv"))
+lizard_species<-read.csv(file.path(here::here(),"project_data","ATLANTIC_AMPHIBIANS_species.csv"))
+mammal_sites_not_clean<-read.csv(file.path(here::here(),"project_data","ATLANTIC_SM_Study_Site.csv"),check.names=F)
+
+
+
+#mammal_sites=mammal_sites_not_clean[,mammal_sites_not_clean$Longitude!=na]
+mammal_sites=na.omit(mammal_sites_not_clean)
+
+head(lizard_sites)
+
+head(lizard_species)
+head(mammal_sites)
+
+locations_2 <- data.frame(mammal_sites$Size,mammal_sites$Latitude,mammal_sites$Longitude)
+colnames(locations_2) = c("size","Latitude","Longitude")
+mammal_locations_2=locations_2
+coordinates(mammal_locations_2) = ~Longitude+Latitude
+proj4string(mammal_locations_2) = CRS("+init=epsg:4326") 
+
+
+locations <- data.frame(lizard_sites$species_number,lizard_sites$latitude,lizard_sites$longitude)
+colnames(locations) = c("num_species","Latitude","Longitude")
+lizard_locations_2=locations
+coordinates(lizard_locations_2) = ~Longitude+Latitude
+proj4string(lizard_locations_2) = CRS("+init=epsg:4326") 
+
+sum(is.na(lizard_locations_2$num_species))
+
+river=readOGR(dsn = data_files,layer = "brazil_water")
+
+plot(x = lizard_sites$species_number,
+     y = lizard_sites$percipitation,
+     main="Amount of Species vs Percipitation")
+
+library(ggplot2)
+ggplot(lizard_sites, aes(x = species_number, y = precipitation)) +
+  geom_point()
+
+lm(lizard_sites$species_number ~ lizard_sites$precipitation)
+
+```
+
+```{r}
+
+tm_shape(altitude) + 
+    #tm_grid(col = "green", 
+   #         n.x = 4, 
+   #         n.y = 4, 
+   #         lines = FALSE, 
+    #        labels.rot = c(0, 90)) + 
+    tm_raster(palette = colorRampPalette( c("darkolivegreen4","yellow", "brown"))(12), 
+              #n = 10,  
+              
+              legend.show = TRUE, 
+              alpha = 0.8,
+              style=("cont"))+
+
+tm_shape(lizard_locations_2)+
+  tm_dots(shape = 1, 
+             size = .2,
+             border.lwd = 0.3,
+          col="num_species",
+          #palette=get_brewer_pal("RdGy",n=9),
+          palette = colorRampPalette( c("darkolivegreen4","red", "black"))(12),
+                                      
+          style=("cont") )+
+
+  tm_scale_bar(position = c("right", "top"))+
+    tm_compass(position = c("left", "bottom"), 
+               type = "4star", 
+               size = 2)
+```
+
+```{r}
+
+#tmaptools::palette_explorer()
+plot(altitude)
+plot(lizard_locations_2,col ="chartreuse3",add=T)
+
+install.packages("shinyjs")
+
+plot(mammal_locations_2, # x- and y-coordinates
+     pch = 19,                             # make the points filled circles (help(points) for options
+     col = "lightsalmon4",add=T)
+
+sort(table(lizard_sites$species_number))
+
+
+p_locations = subset(lizard_species,lizard_species$species%in%c("Physalaemus cuvieri"))
+
+p_sites = subset(lizard_sites,lizard_sites$id%in%(p_locations$id))
+locations3 <- data.frame(p_sites$species_number,p_sites$latitude,p_sites$longitude)
+colnames(locations3) = c("num_species","Latitude","Longitude")
+p_sites_2=locations3
+coordinates(p_sites_2) = ~Longitude+Latitude
+proj4string(p_sites_2) = CRS("+init=epsg:4326") 
+
+d_locations = subset(lizard_species,lizard_species$species%in%c("Dendropsophus minutus"))
+
+d_sites = subset(lizard_sites,lizard_sites$id%in%(d_locations$id))
+locations4 <- data.frame(d_sites$species_number,d_sites$latitude,d_sites$longitude)
+colnames(locations4) = c("num_species","Latitude","Longitude")
+d_sites_2=locations4
+coordinates(d_sites_2) = ~Longitude+Latitude
+proj4string(d_sites_2) = CRS("+init=epsg:4326") 
+
+class(p_sites_2)
+
+head(p_sites)
+#pointLabel(x = locations_2@coords,   #Label position: the same coordinates as the spatial object
+    #      labels = locations$site_name)
+
+head(lizard_sites)
+
+names<-c("Mojave Dam")
+longitude=c(-117.234413)
+latitude=c(34.342769)
+
+points_of_interest <- data.frame(names,latitude,longitude)
+
+colnames(points_of_interest) = c("Place_Name","Latitude","Longitude")
+
+points_of_interest_2=points_of_interest
+
+# 2. Make a copy of your data frame, turn it into a spatial object, and assign it the WGS84 coordinate reference system
+coordinates(points_of_interest_2) = ~Longitude+Latitude
+
+# Assign WGS84 Coordinate Reference System to the new spatial object
+# (WGS84 is the most common way to record GPS coordinates, and is what Google Maps uses)
+proj4string(points_of_interest_2) = CRS("+init=epsg:4326") 
+
+points_of_interest_2=spTransform(points_of_interest_2,crs(low_resolution_dem));
+
+summary(lizard_sites$precipitation)
+summary(lizard_sites$altitude)
+
+class(lizard_sites)
+
+threshold=1000
+
+
+lizard_sites_dry = lizard_sites[lizard_sites$precipitation<threshold,]
+lizard_sites_wet = lizard_sites[lizard_sites$precipitation>threshold,]
+
+plot(x=lizard_sites_dry$precipitation,y=lizard_sites_dry$species_number,ylim=c(0,80))
+reg_dry=lm(formula=species_number~precipitation,data=lizard_sites_dry)
+
+abline(reg_dry)
+
+
+plot(x=lizard_sites_wet$precipitation,y=lizard_sites_wet$species_number,ylim=c(0,80))
+reg_wet=lm(formula=species_number~precipitation,data=lizard_sites_wet)
+
+abline(reg_wet)
+
+
+
+summary(reg_dry)
+summary(reg_wet)
+
+
+
+```
+
+
+```{r}
+
+
+#major rivers and sp data frame into same projection
+
+#make buffer around major rivers data frame
+#extract
+#subset p_sites into the ones that are around major rivers, or within the boundaries of the raster
+#and the ones that are not
+
+
+
+#sp data frame with lizard sites
+lizard_locations_2
+
+class(river)
+
+plot(river)
+```
+
+
+
+```{r}
+
+#BRA = getData(name = "GADM", # Administrative (States)
+   #     country = "BRA", level=1) #ISO code for
+#rivers = mask(crop(rivers,altitude),altitude)
+#river = river[BRA,]
+tm_shape(altitude) + 
+    #tm_grid(col = "green", 
+   #         n.x = 4, 
+   #         n.y = 4, 
+   #         lines = FALSE, 
+    #        labels.rot = c(0, 90)) + 
+    tm_raster(palette = colorRampPalette( c("darkolivegreen4","yellow", "brown"))(12), 
+              #n = 10,  
+              
+              legend.show = TRUE, 
+              alpha = 0.8,
+              style=("cont"))+
+
+tm_shape(lizard_locations_2)+
+  tm_dots(shape = 1, 
+             size = .2,
+             border.lwd = 0.3,
+          col="num_species",
+          #palette=get_brewer_pal("RdGy",n=9),
+          palette = colorRampPalette( c("darkolivegreen4","red", "black"))(12),
+                                      
+          style=("cont") )+
+tm_shape(river) +  
+    tm_polygons(col = "blue",
+             lty=1,alpha=0.1)+
+  tm_scale_bar(position = c("right", "top"))+
+    tm_compass(position = c("left", "bottom"), 
+               type = "4star", 
+               size = 2)
+
+tm_shape(altitude) + 
+    tm_raster(palette = colorRampPalette( c("darkolivegreen4","green", "brown"))(12), 
+              legend.show = TRUE, 
+              alpha = 0.8,
+              style=("cont"))+
+
+tm_shape(p_sites_2)+
+  tm_dots(shape = 1, 
+             size = .2,
+             border.lwd = 0.3,
+                                      
+          style=("cont") )+
+  
+  tm_shape(river) +  
+    tm_polygons(col = "blue",
+             lty=1,alpha=0.1)+
+
+  tm_scale_bar(position = c("right", "top"))+
+    tm_compass(position = c("left", "bottom"), 
+               type = "4star", 
+               size = 2)
+
+tm_shape(altitude) + 
+    tm_raster(palette = colorRampPalette( c("darkolivegreen4","tan1", "brown"))(12), 
+              legend.show = TRUE, 
+              alpha = 0.8,
+              style=("cont"))+
+
+tm_shape(d_sites_2)+
+  tm_dots(shape = 1, 
+             size = .2,
+             border.lwd = 0.3,
+                                      
+          style=("cont") )+
+  
+  tm_shape(river) +  
+    tm_polygons(col = "blue",
+             lty=1,alpha=0.1)+
+
+  tm_scale_bar(position = c("right", "top"))+
+    tm_compass(position = c("left", "bottom"), 
+               type = "4star", 
+               size = 2)
+```
+
+
+```{r}
+lizard_amounts=sort(table(lizard_species$species),decreasing=TRUE)
+lizard_amounts_2=log(lizard_amounts,10)
+class(lizard_amounts)
+View(lizard_amounts)
+
+
+
+amounts_hist <- hist(lizard_amounts, breaks=seq(0,700,1), plot=FALSE)
+amounts_hist
+plot(y=amounts_hist$counts,x=amounts_hist$mids, log="y", pch=20, col="blue")
+
+
+#hist(lizard_amounts,breaks=seq(0,700,10),main="Frequency of Quantities",log10(trunc(1e6/(1:1e6)^1.5)))
+hist(lizard_amounts,breaks=seq(0,700,10),main="Frequency of Quantities")
+hist(lizard_amounts_2,main="Frequency of Quantities")
+
+ggplot(as.data.frame(lizard_amounts), aes(x=Freq )) + 
+       geom_histogram(aes(y = ..density..), fill = 'red', alpha = 0.5) + 
+     #  facet_wrap(vars(SITE_CODE)) +
+       geom_density(colour = 'blue') + 
+       ylab(expression(bold('Density')))
+```
+
+```{r}
+
+
+
+```
+
+
+
+
+```{r}
+library(httr) # Allows R to download from a URL - GET() and content() functions
+library(readr) # Tools to parse the download response - cols() function
+library(dataRetrieval) # USGS data
+
+# library(devtools) # you'll need this to install the CDECRetrieve package
+#devtools::install_github("flowwest/CDECRetrieve") # Install this package from their open-source Github page
+
+#After you've installed CDECRetrieve, you can comment out lines 17 and 18 - you only have to install it once.
+library(CDECRetrieve) # CDEC data
+base_url = "https://www.ncei.noaa.gov/access/services/data/v1"  # NOAA query url
+dataset = "daily-summaries"       # NOAA data type, 1 value for each day
+stations = "USC00044712"          # NOAA station in Winters, CA
+start_date = "1800-01-01"         # Extreme early start date to be safe
+end_date = Sys.Date()             # Pulls the date from your computer's clock
+data_format = "csv"               # Text data separated by commas
+data_types = paste(c("TMAX", 
+                     "TMIN", 
+                     "PRCP"), collapse=",") # Specify the data types we want
+
+# Use the paste0() function to string these together as a URL.
+noaa_url = paste0(base_url, 
+                  "?dataset=", dataset, 
+                  "&stations=", stations,
+                  "&startDate=", start_date,
+                  "&endDate=", end_date,
+                  "&dataTypes=", data_types,
+                  "&format=", data_format,
+                  "&includeAttributes=0&includeStationName=true&includeStationLocation=true",
+                  "&units=metric")
+
+# Use the GET function to query the database and download the result.
+noaa_download = GET(noaa_url)
+
+# Parse the download using the content() command and assign data types for each column.
+weather_data = content(noaa_download, "parsed", 
+                       col_types = cols("STATION" = col_character(),
+                                        "DATE" = col_date(format = ""),
+                                        "TMAX" = col_double(),
+                                        "TMIN" = col_double(),
+                                        "PRCP" = col_double()) )
+
+
+
+```
+#header
+
+```{r}
+
+
+# Brazil rainfall data code
+
+library(raster)
+
+# Download country boundary for Brazil
+brazil = getData(name = "GADM", # Administrative boundaries
+                 country = "BRA", level = 1) #ISO code for Brazil
+
+
+#Download average monthly global rainfall data (coarsest resolution) 
+# There is 1 raster for each month, all stored in 1 "RasterStack" variable
+global_rainfall_12months = getData(name = "worldclim", # Database of global interpolated climate data (worldclim.org)
+                                   var = "prec",                         # rainfall data
+                                   res = 2.5)                            # Resolution - 2.5 degrees
+
+# Add the 12 months together to get avg annual rainfall (each raster is a month; it adds pixel-by-pixel)
+global_avg_annual_rainfall = sum(global_rainfall_12months) 
+
+# Crop the raster to the bounding box of Brazil, and mask it to the outline of Brazil
+brazil_rainfall = crop(global_avg_annual_rainfall, brazil)
+brazil_rainfall = mask(brazil_rainfall, brazil)
+
+class(brazil_rainfall)
+summary(brazil_rainfall)
+# Plot
+plot(brazil_rainfall, main = "Average Annual Rainfall in Brazil (mm/yr)")
+plot(river, add=T)
+
+hist(brazil_rainfall,main = "Rainfall Distribution")
+```

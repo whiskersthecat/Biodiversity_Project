@@ -1,0 +1,132 @@
+---
+title: "Data Analysis"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T,error = TRUE)
+
+library(raster)
+library(rgdal)  # Reads shapefiles
+library(sp)     # Manipulates shapefiles
+library(maptools)
+
+library(tmaptools)
+
+library(tmap)
+library(gdalUtils)
+library(rgeos)
+
+library(ggplot2)
+
+river=readOGR(dsn = data_files,layer = "brazil_water")
+
+head(lizard_sites)
+
+data_files = file.path(here::here(), 
+      "project_data")
+lizard_sites<-read.csv(file.path(here::here(),"project_data","ATLANTIC_AMPHIBIANS_sites.csv"))
+
+locations <- data.frame(lizard_sites$species_number,lizard_sites$latitude,lizard_sites$longitude)
+colnames(locations) = c("num_species","Latitude","Longitude")
+lizard_sites_spf=lizard_sites
+coordinates(lizard_sites_spf) = ~longitude+latitude
+proj4string(lizard_sites_spf) = CRS("+init=epsg:4326") 
+
+river=readOGR(dsn = data_files,layer = "brazil_water")
+
+```
+#Split wet and dry
+```{r}
+
+threshold=1000
+
+
+lizard_sites_dry = lizard_sites[lizard_sites$precipitation<threshold,]
+lizard_sites_wet = lizard_sites[lizard_sites$precipitation>threshold,]
+
+plot(x=lizard_sites_dry$precipitation,y=lizard_sites_dry$species_number,
+     ylim=c(0,80),ylab="Number of Species",xlab="Precipitation (mm/yr) ",main="Species Diversity in Dry Regions")
+reg_dry=lm(formula=species_number~precipitation,data=lizard_sites_dry)
+
+abline(reg_dry)
+
+
+plot(x=lizard_sites_wet$precipitation,y=lizard_sites_wet$species_number,ylim=c(0,80),ylab="Number of Species",xlab="Precipitation (mm/yr) ",main="Species Diversity in Wet Regions")
+reg_wet=lm(formula=species_number~precipitation,data=lizard_sites_wet)
+
+abline(reg_wet)
+
+summary(reg_dry)
+summary(reg_wet)
+```
+
+#Split wet and dry
+```{r}
+
+summary(lizard_sites$altitude)
+threshold=828
+
+
+lizard_sites_low = lizard_sites[lizard_sites$altitude<threshold,]
+lizard_sites_high = lizard_sites[lizard_sites$altitude>threshold,]
+
+plot(x=lizard_sites_low$precipitation,y=lizard_sites_low$species_number,
+     ylab="Number of Species",xlab="Precipitation (mm/yr)",main="Species Diversity in Lower Altitude Regions",col="lightsteelblue",fg="black",pch=5,xlim=c(500,3000),ylim=c(0,90),panel.first = grid())
+reg_low=lm(formula=species_number~precipitation,data=lizard_sites_low)
+
+abline(reg_low)
+
+
+plot(x=lizard_sites_high$precipitation,y=lizard_sites_high$species_number,
+     ylab="Number of Species",xlab="Precipitation (mm/yr)",main="Species Diversity in Higher Altitude Regions",col="lightsteelblue4",fg="black",pch=5,panel.first = grid(),xlim=c(500,3000),ylim=c(0,90))
+reg_high=lm(formula=species_number~precipitation,data=lizard_sites_high)
+
+abline(reg_high)
+
+summary(reg_low)
+summary(reg_high)
+```
+
+```{r}
+brazil_proj = "+proj=laea +lon_0=-54.5800781 +lat_0=0 +datum=WGS84 +units=m +no_defs"
+class(river)
+lizard_sites_spf = spTransform(lizard_sites_spf, CRSobj = (brazil_proj))
+#assign wgs84 projection
+projection(river) <- CRS("+init=epsg:4326")
+river = spTransform(river, CRSobj = brazil_proj)  #,na.rm=T)
+
+river_buffer = buffer(river, width = 1000)
+
+
+
+class(lizard_sites_spf)
+plot(river)
+
+plot(river_buffer,col="deepskyblue")
+plot(river,col="blue",add=T)
+plot(lizard_sites_spf,add=T)
+
+test=extract(x=river_buffer,y=lizard_sites_spf)
+
+lizard_sites_spf$is_near_river = test$poly.ID
+lizard_sites_spf$is_near_river[is.na(lizard_sites_spf$is_near_river)]=0
+lizard_sites_far_from_river = lizard_sites_spf[lizard_sites_spf$is_near_river==0,]
+lizard_sites_close_to_river = lizard_sites_spf[lizard_sites_spf$is_near_river==1,]
+
+lizard_sites_spf$is_near_river
+#sum(is.na(test$poly.ID))
+```
+
+```{r}
+plot(x=lizard_sites_far_from_river$precipitation,y=lizard_sites_low$species_number,
+     ylab="Number of Species",xlab="Precipitation (mm/yr)",main="Species Diversity in Lower Altitude Regions",col="lightsteelblue",fg="black",pch=5,xlim=c(500,3000),ylim=c(0,90),panel.first = grid())
+reg_low=lm(formula=species_number~precipitation,data=lizard_sites_low)
+
+abline(reg_low)
+
+```
