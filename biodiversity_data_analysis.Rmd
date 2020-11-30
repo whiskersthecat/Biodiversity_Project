@@ -22,17 +22,12 @@ library(gdalUtils)
 library(rgeos)
 
 library(ggplot2)
-
-river=readOGR(dsn = data_files,layer = "brazil_water")
-
-head(lizard_sites)
-
 data_files = file.path(here::here(), 
       "project_data")
 lizard_sites<-read.csv(file.path(here::here(),"project_data","ATLANTIC_AMPHIBIANS_sites.csv"))
 
-locations <- data.frame(lizard_sites$species_number,lizard_sites$latitude,lizard_sites$longitude)
-colnames(locations) = c("num_species","Latitude","Longitude")
+head(lizard_sites)
+
 lizard_sites_spf=lizard_sites
 coordinates(lizard_sites_spf) = ~longitude+latitude
 proj4string(lizard_sites_spf) = CRS("+init=epsg:4326") 
